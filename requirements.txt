@@ -1,0 +1,14 @@
+pandas
+numpy
+faker
+scikit-learn
+xgboost
+shap
+streamlit
+plotly
+matplotlib
+python-docx
+weasyprint
+langgraph
+langchain-groq
+langchain-community

@@ -1,0 +1,27 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+env/
+.env
+
+# MacOS
+.DS_Store
+
+# Streamlit
+.streamlit/
+
+# Generated files / temp uploads
+temp_upload.csv
+reports/
+
+# Machine Learning Artifacts
+*.pkl
+model_metrics.json
+preprocessing_info.json
+
+# Logs
+*.log
