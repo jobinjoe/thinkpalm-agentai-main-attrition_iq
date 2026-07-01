@@ -3,6 +3,10 @@ import pandas as pd
 import plotly.express as px
 import os
 from agent_graph import build_agent_graph
+from db_utils import init_db, save_predictions, get_historical_predictions
+
+# Initialize SQLite database
+init_db()
 
 st.set_page_config(page_title="AttritionIQ Dashboard", page_icon="📈", layout="wide")
 
@@ -55,11 +59,19 @@ with st.sidebar:
                         st.session_state.predictions = result.get("predictions", [])
                         st.session_state.recommendations = result.get("recommendations", [])
                         st.session_state.raw_data = result.get("raw_data")
-                        st.success("Analysis Complete!")
+                        
+                        # Save to SQLite Database
+                        if st.session_state.predictions:
+                            save_predictions(st.session_state.predictions, st.session_state.recommendations)
+                            
+                        st.success("Analysis Complete and Saved to Database!")
 
 # Main Content
-if st.session_state.raw_data is not None and st.session_state.predictions:
-    tab1, tab2, tab3 = st.tabs(["📊 Organization Overview", "👤 Employee Drill-Down", "📉 Model Metrics"])
+history_df = get_historical_predictions()
+has_current_run = st.session_state.raw_data is not None and st.session_state.predictions
+
+if has_current_run:
+    tab1, tab2, tab3, tab4 = st.tabs(["📊 Organization Overview", "👤 Employee Drill-Down", "📉 Model Metrics", "📂 Historical Data"])
     
     # --- TAB 1: OVERVIEW ---
     with tab1:
@@ -77,6 +89,17 @@ if st.session_state.raw_data is not None and st.session_state.predictions:
                      color_continuous_scale="Reds", title="Average Attrition Risk by Department (%)")
         st.plotly_chart(fig, use_container_width=True)
         
+        # HTML Report Download
+        report_path = "reports/Attrition_Risk_Report.html"
+        if os.path.exists(report_path):
+            with open(report_path, "r") as f:
+                st.download_button(
+                    label="📥 Download Full HTML Risk Report",
+                    data=f.read(),
+                    file_name="Attrition_Risk_Report.html",
+                    mime="text/html"
+                )
+                
         st.subheader("Critical Risk Employees")
         critical_df = preds_df[preds_df['Risk_Tier'] == 'Critical'].copy()
         if not critical_df.empty:
@@ -180,6 +203,23 @@ if st.session_state.raw_data is not None and st.session_state.predictions:
                 st.plotly_chart(fig_cm, use_container_width=True)
         except Exception as e:
             st.info("Model metrics are not available. Run the ML pipeline to generate them.")
-
 else:
-    st.info("Please upload a CSV file and run the analysis to view the dashboard.")
+    tab4, = st.tabs(["📂 Historical Data"])
+    st.info("Please upload a CSV file and run the analysis to view the full dashboard.")
+
+# --- TAB 4: HISTORICAL DATA ---
+with tab4:
+    st.header("Historical Predictions (SQLite Database)")
+    if not history_df.empty:
+        st.dataframe(history_df, use_container_width=True)
+        
+        # Add a download button for history
+        csv = history_df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📥 Download History as CSV",
+            data=csv,
+            file_name='attrition_history.csv',
+            mime='text/csv',
+        )
+    else:
+        st.info("No historical data found in the database. Run an analysis to generate some!")

@@ -124,6 +124,15 @@ def run_pipeline():
     
     # 7. Save Artifacts
     joblib.dump(model, 'attrition_xgboost_model.pkl')
+    
+    # Save Feature Importance Chart
+    import matplotlib.pyplot as plt
+    plt.figure(figsize=(10, 8))
+    xgb.plot_importance(model, max_num_features=15, height=0.5)
+    plt.title('XGBoost Feature Importance')
+    plt.tight_layout()
+    plt.savefig('feature_importance.png', dpi=300)
+    plt.close()
     joblib.dump(scaler, 'scaler.pkl')
     # Save encoders and columns info for inference
     preprocessing_info = {

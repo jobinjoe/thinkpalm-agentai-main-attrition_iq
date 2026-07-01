@@ -1,0 +1,21 @@
+Employee_ID,Name,Age,Department,Role,Tenure_Years,Salary_USD,Performance_Rating,Manager_Rating,Leave_Days_Taken,Avg_Working_Hours_Week,Months_Since_Last_Promotion,Engagement_Index,Attrition
+EMP0000,Allison Hill,29,Sales,Manager,4.1,100652,1,5,13,36,1,41,1
+EMP0001,Noah Rhodes,54,Finance,Associate,8.6,57413,1,2,22,48,43,65,1
+EMP0002,Angie Henderson,43,Sales,Associate,6.0,54290,5,1,29,47,10,100,0
+EMP0003,Daniel Wagner,45,Finance,Specialist,10.7,80482,1,4,8,49,93,50,0
+EMP0004,Cristian Santos,35,Operations,Manager,10.7,100225,2,4,12,43,56,71,0
+EMP0005,Connie Lawrence,25,Engineering,Associate,12.2,53300,2,4,12,63,117,48,1
+EMP0006,Abigail Shaffer,37,Operations,VP,8.3,246040,2,5,15,37,96,36,0
+EMP0007,Gina Moore,31,Operations,Specialist,12.0,84306,4,5,8,52,2,44,0
+EMP0008,Gabrielle Davis,56,IT,Manager,11.6,111667,1,3,16,59,45,94,0
+EMP0009,Ryan Munoz,41,IT,VP,9.3,264523,5,3,15,35,14,76,0
+EMP0010,Monica Herrera,41,Engineering,Associate,4.0,54724,5,2,4,56,30,100,1
+EMP0011,Jamie Arnold,55,IT,VP,6.6,242394,3,4,28,51,57,45,1
+EMP0012,Lisa Hensley,26,HR,Associate,9.0,43504,2,1,28,36,42,39,1
+EMP0013,Michele Williams,39,Operations,Director,3.6,176743,4,4,6,38,6,85,0
+EMP0014,Dylan Miller,48,Marketing,Associate,10.3,40014,2,2,6,52,57,47,1
+EMP0015,Brian Ramirez,39,Marketing,Specialist,13.2,78376,1,1,29,59,60,51,1
+EMP0016,Holly Wood,52,Engineering,Director,13.6,168040,3,4,22,65,142,92,1
+EMP0017,Derek Zuniga,40,Engineering,Associate,8.9,62337,4,5,29,62,67,50,1
+EMP0018,Lisa Jackson,54,Sales,Specialist,1.5,86458,2,5,19,36,2,83,0
+EMP0019,Carla Gray,58,Finance,Manager,14.1,112074,2,3,14,45,18,31,0

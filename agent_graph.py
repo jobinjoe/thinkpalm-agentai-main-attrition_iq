@@ -52,6 +52,14 @@ def feature_engineering_agent(state: AgentState):
         
         df_features = feature_engineering(df_clean)
         
+        # Document the transformation
+        import os
+        os.makedirs("reports", exist_ok=True)
+        with open("reports/feature_engineering_log.txt", "w") as f:
+            f.write(f"Feature Engineering Complete.\\n")
+            f.write(f"Original Rows: {len(df_clean)}, New Features Generated: {len(df_features.columns) - len(df_clean.columns)}\\n")
+            f.write(f"Current Features: {list(df_features.columns)}\\n")
+            
         # Load preprocessing artifacts
         scaler = joblib.load('scaler.pkl')
         with open('preprocessing_info.json', 'r') as f:
@@ -102,24 +110,31 @@ def prediction_and_scoring_agent(state: AgentState):
         feature_names = info['cat_cols'] + info['num_cols']
         
         predictions = []
-        # Score and explain only High Risk employees to save time/API calls
+        # Score and explain all employees for the dashboard
         for i in range(len(probs)):
             prob = float(probs[i])
-            if prob > 0.60: # Threshold for high risk
-                tier = "Critical" if prob > 0.80 else "High"
+            
+            if prob > 0.80:
+                tier = "Critical"
+            elif prob > 0.60:
+                tier = "High"
+            elif prob > 0.30:
+                tier = "Medium"
+            else:
+                tier = "Low"
                 
-                # Get SHAP explanation
-                x_instance = pd.DataFrame([X.iloc[i]], columns=feature_names)
-                explanation = explainer.explain_prediction(feature_names, x_instance)
-                
-                predictions.append({
-                    "Employee_ID": emp_ids[i],
-                    "Risk_Probability": round(prob * 100, 2),
-                    "Risk_Tier": tier,
-                    "Top_Drivers": explanation["top_drivers"],
-                    "SHAP_Base_Value": explanation["base_value"],
-                    "SHAP_All_Impacts": explanation["all_impacts"]
-                })
+            # Get SHAP explanation
+            x_instance = pd.DataFrame([X.iloc[i]], columns=feature_names)
+            explanation = explainer.explain_prediction(feature_names, x_instance)
+            
+            predictions.append({
+                "Employee_ID": emp_ids[i],
+                "Risk_Probability": round(prob * 100, 2),
+                "Risk_Tier": tier,
+                "Top_Drivers": explanation["top_drivers"],
+                "SHAP_Base_Value": explanation["base_value"],
+                "SHAP_All_Impacts": explanation["all_impacts"]
+            })
         
         return {"predictions": predictions}
     except Exception as e:
@@ -142,13 +157,18 @@ def recommendation_agent(state: AgentState):
             Based on our ML analysis, the top factors driving their attrition risk are:
             {drivers}
             
-            Write a short, highly professional, personalized 3-point action plan for their manager to help retain this employee.
-            Be specific to the driving factors provided. Output ONLY the action plan, no pleasantries.
+            First, write a single plain English sentence summarizing these top attrition drivers (e.g., "This employee's top attrition drivers are: working hours (increased), no promotion (increased), below-band salary (increased).").
+            
+            Then, write a short, highly professional, personalized 3-point action plan for their manager to help retain this employee.
+            Be specific to the driving factors provided. Output ONLY the summary sentence followed by the action plan, no pleasantries.
             """
         )
         
         recommendations = []
         for pred in predictions:
+            if pred.get("Risk_Tier") not in ["High", "Critical"]:
+                continue
+                
             drivers_str = "\\n".join([f"- {d['feature']} ({d['impact_direction']})" for d in pred['Top_Drivers']])
             prompt = prompt_template.format(
                 emp_id=pred["Employee_ID"],
@@ -167,14 +187,16 @@ def recommendation_agent(state: AgentState):
         return {"error": str(e)}
 
 def report_generation_agent(state: AgentState):
-    """Generates Word documents for the HR team."""
+    """Generates Word documents and a full HTML Report for the HR team."""
     print("Agent: Report Generation")
     try:
         recommendations = state.get("recommendations", [])
+        predictions = state.get("predictions", [])
         
         if not os.path.exists("reports"):
             os.makedirs("reports")
             
+        # 1. Generate Individual Word Docs
         for rec in recommendations:
             doc = Document()
             doc.add_heading(f"Retention Action Plan: {rec['Employee_ID']}", 0)
@@ -182,8 +204,111 @@ def report_generation_agent(state: AgentState):
             doc.add_paragraph(rec['Action_Plan'])
             doc.save(f"reports/ActionPlan_{rec['Employee_ID']}.docx")
             
+        # 2. Generate Full HTML Report
+        high_risk = [p for p in predictions if p.get("Risk_Tier") in ["High", "Critical"]]
+        
+        html_content = f"""
+        <html>
+        <head><title>Attrition Risk Report</title>
+        <style>
+            body {{ font-family: Arial, sans-serif; margin: 40px; }}
+            h1 {{ color: #2c3e50; }}
+            table {{ border-collapse: collapse; width: 100%; margin-top: 20px; }}
+            th, td {{ border: 1px solid #ddd; padding: 12px; text-align: left; }}
+            th {{ background-color: #f2f2f2; }}
+            .critical {{ color: #e74c3c; font-weight: bold; }}
+            .high {{ color: #e67e22; font-weight: bold; }}
+        </style>
+        </head>
+        <body>
+            <h1>Weekly Attrition Risk Report</h1>
+            <p>Total High/Critical Risk Employees Found: <strong>{len(high_risk)}</strong></p>
+            <h2>Top At-Risk Employees</h2>
+            <table>
+                <tr>
+                    <th>Employee ID</th>
+                    <th>Risk Probability</th>
+                    <th>Risk Tier</th>
+                </tr>
+        """
+        
+        for p in sorted(high_risk, key=lambda x: x["Risk_Probability"], reverse=True)[:10]:
+            tier_class = "critical" if p["Risk_Tier"] == "Critical" else "high"
+            html_content += f"""
+                <tr>
+                    <td>{p['Employee_ID']}</td>
+                    <td>{p['Risk_Probability']}%</td>
+                    <td class="{tier_class}">{p['Risk_Tier']}</td>
+                </tr>
+            """
+            
+        html_content += """
+            </table>
+        </body>
+        </html>
+        """
+        
+        with open("reports/Attrition_Risk_Report.html", "w") as f:
+            f.write(html_content)
+            
         return state
     except Exception as e:
+        return {"error": str(e)}
+
+def alert_agent(state: AgentState):
+    """Sends Email and Slack alerts."""
+    print("Agent: Alert")
+    try:
+        import smtplib
+        import requests
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
+        
+        predictions = state.get("predictions", [])
+        high_risk_count = len([p for p in predictions if p.get("Risk_Tier") in ["High", "Critical"]])
+        
+        # SLACK WEBHOOK
+        slack_url = os.environ.get("SLACK_WEBHOOK_URL")
+        if slack_url:
+            payload = {"text": f"🚨 *AttritionIQ Alert*: Analysis complete. Found {high_risk_count} high-risk employees. Check the dashboard!"}
+            requests.post(slack_url, json=payload)
+        else:
+            print("Skipping Slack alert (SLACK_WEBHOOK_URL not set).")
+            
+        # SMTP EMAIL
+        smtp_server = os.environ.get("SMTP_SERVER")
+        smtp_port = os.environ.get("SMTP_PORT")
+        smtp_user = os.environ.get("SMTP_USER")
+        smtp_pass = os.environ.get("SMTP_PASS")
+        
+        if smtp_server and smtp_user and smtp_pass:
+            msg = MIMEMultipart()
+            msg['From'] = smtp_user
+            msg['To'] = smtp_user  # Send to self/admin
+            msg['Subject'] = "Weekly Attrition Risk Report"
+            
+            body = f"Analysis complete. Found {high_risk_count} high-risk employees. See the attached HTML report."
+            msg.attach(MIMEText(body, 'plain'))
+            
+            # Attach HTML report if exists
+            report_path = "reports/Attrition_Risk_Report.html"
+            if os.path.exists(report_path):
+                with open(report_path, "r") as f:
+                    attachment = MIMEText(f.read(), "html")
+                    attachment.add_header('Content-Disposition', 'attachment', filename="Attrition_Risk_Report.html")
+                    msg.attach(attachment)
+            
+            with smtplib.SMTP(smtp_server, int(smtp_port or 587)) as server:
+                server.starttls()
+                server.login(smtp_user, smtp_pass)
+                server.send_message(msg)
+        else:
+            print("Skipping SMTP email (SMTP credentials not fully set).")
+            
+        return state
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
         return {"error": str(e)}
 
 # ==========================================
@@ -198,13 +323,15 @@ def build_agent_graph():
     workflow.add_node("prediction_scoring", prediction_and_scoring_agent)
     workflow.add_node("recommendation", recommendation_agent)
     workflow.add_node("report_generation", report_generation_agent)
+    workflow.add_node("alert", alert_agent)
     
     # Define edges (The flow)
     workflow.add_edge("data_ingestion", "feature_engineering")
     workflow.add_edge("feature_engineering", "prediction_scoring")
     workflow.add_edge("prediction_scoring", "recommendation")
     workflow.add_edge("recommendation", "report_generation")
-    workflow.add_edge("report_generation", END)
+    workflow.add_edge("report_generation", "alert")
+    workflow.add_edge("alert", END)
     
     # Set entry point
     workflow.set_entry_point("data_ingestion")
