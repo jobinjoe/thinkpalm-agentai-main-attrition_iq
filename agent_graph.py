@@ -284,7 +284,7 @@ def alert_agent(state: AgentState):
         if smtp_server and smtp_user and smtp_pass:
             msg = MIMEMultipart()
             msg['From'] = smtp_user
-            msg['To'] = smtp_user  # Send to self/admin
+            msg['To'] = "thinkhr@yopmail.com"  # Send to specific HR email
             msg['Subject'] = "Weekly Attrition Risk Report"
             
             body = f"Analysis complete. Found {high_risk_count} high-risk employees. See the attached HTML report."
